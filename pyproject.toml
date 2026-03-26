@@ -1,0 +1,49 @@
+[project]
+name = "decision-machine"
+version = "1.0.0"
+description = "多人格决策机 - 基于多智能体辩论的决策辅助工具"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["multi-agent", "debate", "decision-making", "agentscope", "ai"]
+
+dependencies = [
+    "agentscope>=1.0.0",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.20",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[project.scripts]
+decision-machine = "cli.main:entry_point"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
