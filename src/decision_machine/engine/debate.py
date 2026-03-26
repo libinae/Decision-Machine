@@ -57,15 +57,23 @@ class DebateEngine:
 
         self.ui.print_grouping_result(grouping)
 
-        judge_agent, _, judge_model = self.factory.create_judge(
+        judge_agent, _, _ = self.factory.create_judge(
             persona=grouping.judge,
             topic=self.topic,
             pros_position=self.pros_position,
             cons_position=self.cons_position,
+            stream=False,
         )
         self.background_qa = await self._run_background_qa(judge_agent)
 
         self.factory.streaming = True
+        _, _, judge_model = self.factory.create_judge(
+            persona=grouping.judge,
+            topic=self.topic,
+            pros_position=self.pros_position,
+            cons_position=self.cons_position,
+            stream=True,
+        )
         pros_first_agent, _, pros_first_model = self.factory.create_debater(
             persona=grouping.pros_team.first_debater,
             topic=self.topic,

@@ -5,7 +5,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-
+os.environ['DASHSCOPE_API_KEY'] = "sk-af63c00b78a64f4e87361ab31e366ce6"
 project_root = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(project_root))
 
@@ -41,10 +41,14 @@ async def run_debate():
     # 简单文本解析出正反方
     pros_position: str
     cons_position: str
-    if "？" in topic:
-        parts = topic.replace("？", "?").split("?")
-        pros_position = parts[0].strip() or topic
-        cons_position = parts[1].strip() if len(parts) > 1 else "不" + pros_position
+    
+    # 尝试多种分隔符来解析辩题
+    import re
+    # 匹配中英文问号
+    match = re.match(r'^(.+?)[？?]+(.+?)[？?]*$', topic)
+    if match:
+        pros_position = match.group(1).replace("我应该", "").strip()
+        cons_position = match.group(2).strip()
     elif "还是" in topic:
         parts = topic.split("还是")
         pros_position = parts[0].replace("我应该", "").strip()

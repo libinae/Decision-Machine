@@ -64,6 +64,16 @@ class AgentFactory:
             pros_position=pros_position,
             cons_position=cons_position,
         )
+        
+        if side == "pros":
+            stance_instruction = f"\n\n【重要】你是正方辩手，你的立场是支持【{pros_position}】。请坚定地为这个立场辩护，不要动摇。"
+        elif side == "cons":
+            stance_instruction = f"\n\n【重要】你是反方辩手，你的立场是支持【{cons_position}】。请坚定地为这个立场辩护，不要动摇。"
+        else:
+            stance_instruction = ""
+        
+        prompt = prompt + stance_instruction
+        
         bg_context = self._format_bg_qa(background_qa)
         if bg_context:
             prompt = f"{prompt}\n\n【用户背景信息】\n{bg_context}\n\n辩手应根据以上背景信息，有针对性地展开辩论，结合用户的实际情况提出具体建议。"
