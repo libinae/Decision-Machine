@@ -67,11 +67,8 @@ class GroupingEngine:
         return stances
     
     def _infer_side(self, content: str) -> Side:
-        """从发言内容推断立场"""
-        # 简单的关键词匹配
         pros_keywords = ["支持正方", "赞成", "应该", "选择", "正方"]
         cons_keywords = ["支持反方", "反对", "不应该", "反方"]
-        content_lower = content.lower()
         pros_count = sum(1 for kw in pros_keywords if kw in content)
         cons_count = sum(1 for kw in cons_keywords if kw in content)
         if pros_count > cons_count:
@@ -80,6 +77,28 @@ class GroupingEngine:
             return Side.CONS
         else:
             return Side.NEUTRAL
+    
+    def _wrap_text(self, text: str, width: int) -> List[str]:
+        """将长文本按宽度换行"""
+        import unicodedata
+        lines = []
+        current_line = ""
+        current_width = 0
+        
+        for char in text:
+            char_width = 2 if unicodedata.east_asian_width(char) in ('F', 'W') else 1
+            if current_width + char_width > width:
+                if current_line:
+                    lines.append(current_line)
+                current_line = char
+                current_width = char_width
+            else:
+                current_line += char
+                current_width += char_width
+        
+        if current_line:
+            lines.append(current_line)
+        return lines if lines else [""]
     
     async def _stream_generate(self, agent: ReActAgent, model, prompt: str) -> str:
         """流式生成内容"""
@@ -160,7 +179,7 @@ class GroupingEngine:
             stream=True,
         )
         
-        print(f"    {synthesizer.icon} {synthesizer.name} 分析分组：")
+        print(f"    {synthesizer.icon} {synthesizer.name} 分析分组...")
         result_text = await self._stream_generate(judge_agent, judge_model, prompt)
 
         import json
