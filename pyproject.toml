@@ -13,6 +13,9 @@ keywords = ["multi-agent", "debate", "decision-making", "agentscope", "ai"]
 dependencies = [
     "agentscope>=1.0.0",
     "pydantic>=2.0",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "websockets>=11.0",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +43,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]
-ignore = ["E501"]
+ignore = ["E501", "E402"]
 
 [tool.mypy]
 python_version = "3.10"

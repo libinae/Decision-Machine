@@ -1,7 +1,6 @@
 import unicodedata
-from typing import Generator, Optional
-from ..types import Side, Persona, Speech, GroupingResult, Phase
 
+from ..types import GroupingResult, Persona, Phase, Side
 
 _SIDE_COLORS = {
     Side.PROS: "\033[36m",
@@ -15,7 +14,7 @@ def visual_width(text: str) -> int:
     """计算字符串在终端的视觉宽度（中文字符和emoji算2个宽度）"""
     width = 0
     for char in text:
-        if unicodedata.east_asian_width(char) in ('F', 'W'):  # Full-width
+        if unicodedata.east_asian_width(char) in ("F", "W"):  # Full-width
             width += 2
         else:
             width += 1
@@ -39,7 +38,6 @@ def left_align(text: str, width: int) -> str:
 
 
 class TerminalUI:
-
     def clear_line(self) -> str:
         return "\033[2K\r"
 
@@ -47,10 +45,11 @@ class TerminalUI:
         width = 60
         print()
         print("╔" + "═" * width + "╗")
-        print(f"║{center_align('🎯 多人格决策', width)}║")
-        print(f"║{center_align('', width)}║")
-        topic_line = f"决策主题：{topic}"
-        print(f"║ {topic_line}{' ' * (width - 1 - visual_width(topic_line))} ║")
+        print()
+        print(center_align("🎯 多人格决策", width + 2))
+        print()
+        print(f"  决策主题：{topic}")
+        print()
         print("╚" + "═" * width + "╝")
         print()
 
@@ -61,16 +60,16 @@ class TerminalUI:
     def print_phase(self, phase_name: str) -> None:
         width = 50
         print()
-        print("╟" + "─" * width + "╢")
+        print("  " + "━" * width)
         print(f"  📋 {phase_name}")
-        print("╟" + "─" * width + "╢")
+        print("  " + "━" * width)
         print()
 
     def _get_pros_position(self) -> str:
-        return getattr(self, '_pros_position', '正方')
+        return getattr(self, "_pros_position", "正方")
 
     def _get_cons_position(self) -> str:
-        return getattr(self, '_cons_position', '反方')
+        return getattr(self, "_cons_position", "反方")
 
     def set_positions(self, pros: str, cons: str) -> None:
         self._pros_position = pros
@@ -82,15 +81,28 @@ class TerminalUI:
         print()
 
     def print_grouping_result(self, grouping: GroupingResult) -> None:
-        print("      ○ 正方：" + self._get_pros_position())
-        print("      ● 反方：" + self._get_cons_position())
+        pros = grouping.pros_position or self._get_pros_position()
+        cons = grouping.cons_position or self._get_cons_position()
         print()
         print("  " + "━" * 50)
         print("    分组结果")
-        print(f"      ○ 正方一辩 → {grouping.pros_team.first_debater.icon} {grouping.pros_team.first_debater.name}")
-        print(f"      ○ 正方二辩 → {grouping.pros_team.second_debater.icon} {grouping.pros_team.second_debater.name}")
-        print(f"      ● 反方一辩 → {grouping.cons_team.first_debater.icon} {grouping.cons_team.first_debater.name}")
-        print(f"      ● 反方二辩 → {grouping.cons_team.second_debater.icon} {grouping.cons_team.second_debater.name}")
+        print("  " + "━" * 50)
+        print(f"      ○ 正方：{pros}")
+        print(
+            f"        一辩 → {grouping.pros_team.first_debater.icon} {grouping.pros_team.first_debater.name}"
+        )
+        print(
+            f"        二辩 → {grouping.pros_team.second_debater.icon} {grouping.pros_team.second_debater.name}"
+        )
+        print()
+        print(f"      ● 反方：{cons}")
+        print(
+            f"        一辩 → {grouping.cons_team.first_debater.icon} {grouping.cons_team.first_debater.name}"
+        )
+        print(
+            f"        二辩 → {grouping.cons_team.second_debater.icon} {grouping.cons_team.second_debater.name}"
+        )
+        print()
         print(f"      ⚖️ 裁判 → {grouping.judge.icon} {grouping.judge.name}")
         print("  " + "━" * 50)
         print()
@@ -122,15 +134,15 @@ class TerminalUI:
         speaker: str,
         content: str,
         side: Side,
-        phase: Optional[Phase] = None,
-        step: Optional[int] = None
+        phase: Phase | None = None,
+        step: int | None = None,
     ) -> None:
         prefix = ""
         if step:
             side_indicator = "○" if side == Side.PROS else "●"
             prefix = f"  {side_indicator} 第{step}步："
         elif phase:
-            prefix = f"  ⚖️ "
+            prefix = "  ⚖️ "
 
         print(prefix + speaker + " 发言：")
         print("    " + "─" * 25)
@@ -149,15 +161,15 @@ class TerminalUI:
         speaker: str,
         content: str,
         side: Side,
-        phase: Optional[Phase] = None,
-        step: Optional[int] = None,
+        phase: Phase | None = None,
+        step: int | None = None,
     ) -> str:
         prefix = ""
         if step:
             side_indicator = "○" if side == Side.PROS else "●"
             prefix = f"  {side_indicator} 第{step}步："
         elif phase:
-            prefix = f"  ⚖️ "
+            prefix = "  ⚖️ "
 
         print(prefix + speaker + " 发言：")
         print("    " + "─" * 25)
@@ -172,10 +184,11 @@ class TerminalUI:
         print(f"    {ruling}")
         print()
 
-    def print_winner(self, winner: Optional[Side]) -> None:
+    def print_winner(self, winner: Side | None) -> None:
         width = 50
         print()
         print("╔" + "═" * width + "╗")
+        print()
 
         if winner == Side.PROS:
             result = "🏆 裁决结果：正方胜出！"
@@ -184,6 +197,7 @@ class TerminalUI:
         else:
             result = "🤝 裁决结果：平局！"
 
-        print(f"║{center_align(result, width)}║")
+        print(center_align(result, width + 2))
+        print()
         print("╚" + "═" * width + "╝")
         print()

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多重人格决策机</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Markdown 渲染库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🎯 多重人格决策机</h1>
+            <p class="subtitle">基于多智能体讨论的决策辅助工具</p>
+        </header>
+
+        <section class="input-area">
+            <input
+                type="text"
+                id="topic-input"
+                class="topic-input"
+                placeholder="输入决策主题，如：我应该辞职创业还是继续上班？"
+                value="我应该辞职创业还是继续上班？"
+            >
+            <button id="start-btn" class="start-btn">开始决策</button>
+        </section>
+
+        <section class="status-area" id="status-area">
+            <div class="status-text" id="status-text"></div>
+        </section>
+
+        <section class="debate-area">
+            <div class="debate-log" id="debate-log"></div>
+        </section>
+
+        <section class="result-area" id="result-area" style="display: none;">
+            <div class="winner-display" id="winner-display"></div>
+            <button id="download-btn" class="download-btn">下载报告</button>
+        </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

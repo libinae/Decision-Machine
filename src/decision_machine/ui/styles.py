@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class Colors:
     RESET = "\033[0m"

@@ -1,32 +1,32 @@
 from __future__ import annotations
 
 import json
-from typing import Optional
 
-from ..types import Side, DebateResult, BackgroundQA
+from ..agents import PERSONAS, AgentFactory
 from ..config import AppConfig
-from ..agents import AgentFactory, PERSONAS
+from ..constants import DEFAULT_BACKGROUND_QUESTIONS, RULING_KEYWORDS
+from ..logger import log_error
+from ..types import BackgroundQA, DebateResult, Side
 from ..ui import TerminalUI
-from .phases import DebatePhases
 from .grouping import GroupingEngine
+from .phases import DebatePhases, OpeningResult
 
 
 class DebateEngine:
-
     def __init__(
         self,
         topic: str,
-        pros_position: str,
-        cons_position: str,
+        pros_position: str | None = None,
+        cons_position: str | None = None,
         config: AppConfig | None = None,
+        ui: TerminalUI | None = None,
     ):
         self.topic = topic
         self.pros_position = pros_position
         self.cons_position = cons_position
         self.config = config or AppConfig.from_env()
 
-        self.ui = TerminalUI()
-        self.ui.set_positions(pros_position, cons_position)
+        self.ui = ui or TerminalUI()
         self.factory = AgentFactory(self.config, streaming=False)
         self.all_speeches = []
         self.background_qa: BackgroundQA | None = None
@@ -50,9 +50,13 @@ class DebateEngine:
 
         try:
             grouping, stances = await grouping_engine.run_grouping()
+            # 更新正反方立场（由 AI 分析得出）
+            self.pros_position = grouping.pros_position
+            self.cons_position = grouping.cons_position
+            self.ui.set_positions(self.pros_position, self.cons_position)
             self.all_speeches.extend(stances)
         except Exception as e:
-            print(f"分组阶段出错：{e}")
+            log_error(f"分组阶段出错：{e}", exc_info=True)
             raise
 
         self.ui.print_grouping_result(grouping)
@@ -141,15 +145,22 @@ class DebateEngine:
 
         self.ui.print_winner(winner)
 
-        if isinstance(opening, list):
-            opening_list = opening
+        # 提取开篇陈词的 Speech 对象
+        if isinstance(opening, OpeningResult):
+            opening_list = [
+                opening.pros_first,
+                opening.cons_first,
+                opening.cons_second,
+                opening.pros_second,
+            ]
         elif opening is None:
             opening_list = []
         else:
-            opening_list = [opening]
+            opening_list = list(opening)
 
-        if isinstance(closing, list):
-            closing_list = closing
+        # 提取结辩陈词的 Speech 对象（tuple -> list）
+        if isinstance(closing, tuple):
+            closing_list = list(closing)
         elif closing is None:
             closing_list = []
         else:
@@ -196,6 +207,7 @@ class DebateEngine:
 只需输出JSON，不要有其他内容。"""
 
         from agentscope.message import Msg
+
         msg = Msg("user", prompt, "user")
         response = await judge_agent(msg)
         result_text = response.get_text_content() or ""
@@ -211,13 +223,7 @@ class DebateEngine:
             pass
 
         if not questions:
-            questions = [
-                f"你目前的年龄和所处的人生阶段是什么？",
-                f"你的经济状况如何？有没有足够的储蓄或收入来源？",
-                f"你的家庭情况是怎样的？有没有需要照顾的人？",
-                f"你目前的工作经验和能力积累到什么程度？",
-                f"你内心最大的顾虑或障碍是什么？",
-            ]
+            questions = DEFAULT_BACKGROUND_QUESTIONS
 
         answers: list[str] = []
         for i, q in enumerate(questions, 1):
@@ -226,16 +232,17 @@ class DebateEngine:
 
         return BackgroundQA(questions=questions, answers=answers)
 
-    def _determine_winner(self, ruling: str) -> Optional[Side]:
+    def _determine_winner(self, ruling: str) -> Side | None:
         if not ruling:
             return None
 
-        if "平局" in ruling or "和局" in ruling:
+        draw_keywords = RULING_KEYWORDS["draw"]
+        if any(kw in ruling for kw in draw_keywords):
             return None
 
-        if "正方胜" in ruling:
+        if RULING_KEYWORDS["pros_win"] in ruling:
             return Side.PROS
-        if "反方胜" in ruling:
+        if RULING_KEYWORDS["cons_win"] in ruling:
             return Side.CONS
 
         return None

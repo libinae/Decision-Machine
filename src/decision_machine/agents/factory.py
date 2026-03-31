@@ -1,21 +1,22 @@
+from typing import Any
+
 from agentscope.agent import ReActAgent
 from agentscope.formatter import DashScopeChatFormatter
 from agentscope.message import Msg
 from agentscope.model import DashScopeChatModel
 
-from ..types import Persona, BackgroundQA
 from ..config import AppConfig
+from ..types import BackgroundQA, Persona
 
 
 class AgentFactory:
-
     def __init__(self, config: AppConfig | None = None, streaming: bool = False):
         self.config = config or AppConfig.from_env()
         self.streaming = streaming
 
     def _create_model(self, stream: bool = False) -> DashScopeChatModel:
         model_name = self.config.model.model_name
-        generate_kwargs = {}
+        generate_kwargs: dict[str, Any] = {}
         multimodality = False
         if "qwen3.5" in model_name:
             generate_kwargs["incremental_output"] = True
@@ -58,38 +59,44 @@ class AgentFactory:
         background_qa: BackgroundQA | None = None,
         stream: bool | None = None,
     ) -> tuple[ReActAgent, Msg, DashScopeChatModel]:
+        # 基础人格提示词
         prompt = persona.prompt_template.format(
             icon=persona.icon,
             topic=topic,
             pros_position=pros_position,
             cons_position=cons_position,
         )
-        
+
+        # 添加立场指示
         if side == "pros":
-            stance_instruction = f"\n\n【重要】你是正方辩手，你的立场是支持【{pros_position}】。请坚定地为这个立场辩护，不要动摇。"
+            stance_instruction = f"""
+
+【你的立场】
+你被分配为【正方辩手】，你必须坚定支持【{pros_position}】。
+你需要反驳的是【{cons_position}】。
+请始终站在正方立场发言，不要动摇！"""
         elif side == "cons":
-            stance_instruction = f"\n\n【重要】你是反方辩手，你的立场是支持【{cons_position}】。请坚定地为这个立场辩护，不要动摇。"
+            stance_instruction = f"""
+
+【你的立场】
+你被分配为【反方辩手】，你必须坚定支持【{cons_position}】。
+你需要反驳的是【{pros_position}】。
+请始终站在反方立场发言，不要动摇！"""
         else:
             stance_instruction = ""
-        
+
         prompt = prompt + stance_instruction
-        
+
+        # 添加用户背景信息
         bg_context = self._format_bg_qa(background_qa)
         if bg_context:
-            prompt = f"{prompt}\n\n【用户背景信息】\n{bg_context}\n\n辩手应根据以上背景信息，有针对性地展开辩论，结合用户的实际情况提出具体建议。"
+            prompt = f"{prompt}\n\n【用户背景信息】\n{bg_context}\n\n请根据用户的实际情况，给出有针对性的建议。"
 
         use_stream = stream if stream is not None else self.streaming
         agent = self._create_agent(f"{persona.icon} {persona.name}", prompt, stream=use_stream)
         model = self._create_model(stream=use_stream)
 
-        if side == "pros":
-            instruction = f"你坚定支持【{pros_position}】。请发表你的开场陈词，表明你的立场。"
-        elif side == "cons":
-            instruction = f"你坚定支持【{cons_position}】。请发表你的开场陈词，表明你的立场。"
-        else:
-            instruction = "请客观分析当前辩论情况，给出你的判断。"
-
-        initial_msg = Msg("system", instruction, "system")
+        initial_msg = Msg("system", "", "system")
         return agent, initial_msg, model
 
     def create_judge(
@@ -117,9 +124,5 @@ class AgentFactory:
         use_stream = stream if stream is not None else self.streaming
         agent = self._create_agent(f"⚖️ {persona.name}", judge_prompt, stream=use_stream)
         model = self._create_model(stream=use_stream)
-        initial_msg = Msg(
-            "system",
-            "请等待辩论结束后，根据双方表现给出裁决。",
-            "system"
-        )
+        initial_msg = Msg("system", "请等待辩论结束后，根据双方表现给出裁决。", "system")
         return agent, initial_msg, model

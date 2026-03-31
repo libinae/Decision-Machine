@@ -3,15 +3,15 @@
 - 暴露 five大人格定义与工厂接口
 """
 
+from .factory import AgentFactory
 from .personas import (
-    PERSONAS,
-    RISK_TAKER,
     CONSERVATIVE,
     EMPATHETIC,
+    PERSONAS,
     RATIONAL,
+    RISK_TAKER,
     SYNTHESIZER,
 )
-from .factory import AgentFactory
 
 __all__ = [
     "PERSONAS",

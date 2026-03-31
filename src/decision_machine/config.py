@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import os
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -10,9 +10,10 @@ class ModelConfig:
     api_key: str = ""
 
     @classmethod
-    def from_env(cls) -> "ModelConfig":
+    def from_env(cls) -> ModelConfig:
         api_key = os.environ.get("DASHSCOPE_API_KEY", "")
-        return cls(api_key=api_key)
+        model_name = os.environ.get("DM_MODEL_NAME", "qwen3.5-plus")
+        return cls(api_key=api_key, model_name=model_name)
 
 
 @dataclass
@@ -28,10 +29,8 @@ class AppConfig:
     debate: DebateConfig = field(default_factory=DebateConfig)
 
     @classmethod
-    def from_env(cls) -> "AppConfig":
+    def from_env(cls) -> AppConfig:
         return cls(
             model=ModelConfig.from_env(),
-            debate=DebateConfig(
-                max_debate_rounds=int(os.getenv("DECISION_MAX_ROUNDS", "10"))
-            )
+            debate=DebateConfig(max_debate_rounds=int(os.getenv("DECISION_MAX_ROUNDS", "10"))),
         )

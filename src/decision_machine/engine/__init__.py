@@ -1,5 +1,5 @@
-from .phases import DebatePhases
-from .grouping import GroupingEngine
 from .debate import DebateEngine
+from .grouping import GroupingEngine
+from .phases import DebatePhases
 
 __all__ = ["DebatePhases", "GroupingEngine", "DebateEngine"]

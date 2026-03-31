@@ -1,0 +1,438 @@
+/* 多人格决策机 - Web 样式 */
+
+:root {
+    --bg-dark: #1a1a2e;
+    --bg-card: #16213e;
+    --text-primary: #e8e8e8;
+    --text-secondary: #a0a0a0;
+    --pros-color: #3498db;
+    --cons-color: #e74c3c;
+    --judge-color: #9b59b6;
+    --accent: #0f3460;
+    --success: #2ecc71;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+.header {
+    text-align: center;
+    padding: 30px 0;
+    border-bottom: 1px solid var(--accent);
+    margin-bottom: 30px;
+}
+
+.header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 1rem;
+}
+
+/* Input Area */
+.input-area {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.topic-input {
+    flex: 1;
+    padding: 15px 20px;
+    font-size: 1rem;
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.topic-input:focus {
+    border-color: var(--pros-color);
+}
+
+.start-btn {
+    padding: 15px 30px;
+    font-size: 1rem;
+    font-weight: 600;
+    background: var(--pros-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s, transform 0.2s;
+}
+
+.start-btn:hover {
+    background: #2980b9;
+    transform: translateY(-2px);
+}
+
+.start-btn:disabled {
+    background: var(--text-secondary);
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Status Area */
+.status-area {
+    text-align: center;
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    background: var(--bg-card);
+}
+
+.status-text {
+    font-size: 1rem;
+}
+
+/* Debate Log - 左右布局 */
+.debate-area {
+    margin-bottom: 30px;
+}
+
+.debate-log {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Phase Divider - 居中显示，等宽 */
+.phase-divider {
+    text-align: center;
+    padding: 12px 20px;
+    background: var(--bg-card);
+    border-radius: 8px;
+    font-weight: 600;
+    margin: 10px 0;
+    width: 100%;
+}
+
+/* Speech Card - 左右布局 */
+.speech-card {
+    padding: 15px 20px;
+    background: var(--bg-card);
+    border-radius: 8px;
+    animation: fadeIn 0.3s ease;
+    max-width: 75%;
+}
+
+/* 正方 - 靠左 */
+.speech-card.pros {
+    align-self: flex-start;
+    border-left: 4px solid var(--pros-color);
+    margin-right: auto;
+}
+
+/* 反方 - 靠右 */
+.speech-card.cons {
+    align-self: flex-end;
+    border-right: 4px solid var(--cons-color);
+    margin-left: auto;
+}
+
+/* 裁判/综合人格 - 居中，等宽 */
+.speech-card.judge {
+    align-self: center;
+    border-left: 4px solid var(--judge-color);
+    border-right: 4px solid var(--judge-color);
+    text-align: center;
+    max-width: 100%;
+    width: 100%;
+}
+
+.speech-card.judge .speaker-name {
+    justify-content: center;
+}
+
+.speech-card.judge .speech-content {
+    text-align: left;
+}
+
+.speaker-name {
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.speech-content {
+    line-height: 1.7;
+    word-break: break-word;
+}
+
+/* Markdown 内容样式 */
+.speech-content h1,
+.speech-content h2,
+.speech-content h3 {
+    margin: 0.5em 0;
+    color: var(--text-primary);
+}
+
+.speech-content h1 { font-size: 1.3em; }
+.speech-content h2 { font-size: 1.15em; }
+.speech-content h3 { font-size: 1.05em; }
+
+.speech-content p {
+    margin: 0.5em 0;
+}
+
+.speech-content strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.speech-content em {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.speech-content ul,
+.speech-content ol {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+}
+
+.speech-content li {
+    margin: 0.3em 0;
+}
+
+.speech-content code {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+}
+
+.speech-content blockquote {
+    border-left: 3px solid var(--judge-color);
+    margin: 0.5em 0;
+    padding-left: 1em;
+    color: var(--text-secondary);
+}
+
+/* Grouping Result - 等宽 */
+.grouping-card {
+    padding: 25px;
+    background: var(--bg-card);
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    width: 100%;
+}
+
+.grouping-card h3 {
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 1.2em;
+}
+
+.team-list {
+    display: flex;
+    justify-content: space-between;
+    gap: 30px;
+    margin-bottom: 20px;
+}
+
+.team-item {
+    flex: 1;
+    text-align: center;
+}
+
+.team-item h4 {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent);
+    font-size: 1.1em;
+}
+
+.team-item:first-child h4 {
+    color: var(--pros-color);
+}
+
+.team-item:last-child h4 {
+    color: var(--cons-color);
+}
+
+.debater-item {
+    padding: 10px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.95em;
+}
+
+.judge-info {
+    text-align: center;
+    padding-top: 15px;
+    border-top: 1px solid var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* Result Area */
+.result-area {
+    text-align: center;
+    padding: 30px;
+    background: var(--bg-card);
+    border-radius: 8px;
+    margin-top: 30px;
+}
+
+.winner-display {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+}
+
+.winner-display.pros-win {
+    color: var(--pros-color);
+}
+
+.winner-display.cons-win {
+    color: var(--cons-color);
+}
+
+.winner-display.draw {
+    color: var(--text-secondary);
+}
+
+.download-btn {
+    padding: 12px 25px;
+    font-size: 1rem;
+    background: var(--success);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.download-btn:hover {
+    background: #27ae60;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Persona Init */
+.persona-init {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 15px;
+    background: var(--bg-card);
+    border-radius: 6px;
+    margin: 5px;
+    font-size: 0.9rem;
+}
+
+.persona-init.success {
+    border-left: 3px solid var(--success);
+}
+
+.persona-init.fail {
+    border-left: 3px solid var(--cons-color);
+}
+
+/* QA Section - 等宽 */
+.qa-question {
+    padding: 15px 20px;
+    background: var(--bg-card);
+    border-radius: 8px;
+    border-left: 4px solid var(--judge-color);
+    border-right: 4px solid var(--judge-color);
+    margin: 10px 0;
+    width: 100%;
+    text-align: center;
+}
+
+.qa-question-text {
+    margin-bottom: 10px;
+}
+
+.qa-answer-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    text-align: left;
+}
+
+.qa-submit-btn {
+    margin-top: 10px;
+    padding: 8px 20px;
+    background: var(--judge-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .input-area {
+        flex-direction: column;
+    }
+
+    .team-list {
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .header h1 {
+        font-size: 1.8rem;
+    }
+
+    .speech-card {
+        max-width: 100%;
+    }
+
+    .speech-card.pros,
+    .speech-card.cons {
+        align-self: stretch;
+        margin: 0;
+    }
+}
