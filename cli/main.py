@@ -5,7 +5,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-os.environ['DASHSCOPE_API_KEY'] = "sk-af63c00b78a64f4e87361ab31e366ce6"
+
 project_root = Path(__file__).resolve().parents[1] / "src"
 sys.path.insert(0, str(project_root))
 
@@ -26,8 +26,11 @@ async def run_debate():
 
     api_key = os.environ.get("DASHSCOPE_API_KEY", "")
     if not api_key:
-        print("⚠️  DASHSCOPE_API_KEY 未设置，可能影响部分功能")
+        print("❌ 错误：DASHSCOPE_API_KEY 未设置")
+        print("请在 .env 文件中配置或设置环境变量：")
+        print("  export DASHSCOPE_API_KEY=\"your-api-key\"")
         print()
+        return 1
 
     # 获取辩题
     topic = get_input_with_default(
