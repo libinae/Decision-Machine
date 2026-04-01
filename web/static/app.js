@@ -92,6 +92,10 @@ function handleMessage(msg) {
             showQAQuestion(msg.data);
             break;
 
+        case 'search_keyword':
+            showSearchKeyword(msg.data);
+            break;
+
         case 'speech_start':
             startSpeech(msg.data);
             break;
@@ -154,7 +158,7 @@ function showPersonaInit(data) {
 function showPhase(name) {
     const card = document.createElement('div');
     card.className = 'phase-divider';
-    card.innerHTML = `📋 ${name}`;
+    card.innerHTML = name;
     debateLog.appendChild(card);
     scrollToBottom();
 }
@@ -221,6 +225,19 @@ function submitAnswer(num) {
     ws.send(JSON.stringify({ type: 'qa_answer', answer: answer }));
 }
 
+// 显示搜索关键词
+function showSearchKeyword(data) {
+    const card = document.createElement('div');
+    const sideClass = data.position === '正方' ? 'pros' : 'cons';
+    card.className = `search-keyword-card ${sideClass}`;
+    card.innerHTML = `
+        <span class="search-speaker ${sideClass}">${data.speaker}（${data.position}）</span>
+        <span class="search-keyword">🔍 ${data.keyword}</span>
+    `;
+    debateLog.appendChild(card);
+    scrollToBottom();
+}
+
 // 显示发言（Markdown 渲染）
 function showSpeech(data) {
     const renderedContent = typeof marked !== 'undefined' ? marked.parse(data.content) : data.content;
@@ -271,7 +288,7 @@ function startSpeech(data) {
         <div class="speaker-name">
             ${getSpeakerIcon(data.side)}${data.speaker}
         </div>
-        <div class="speech-content" id="current-content"></div>
+        <div class="speech-content" id="current-content"><span class="typing-cursor"></span></div>
     `;
     debateLog.appendChild(card);
     scrollToBottom();
@@ -287,9 +304,9 @@ function appendSpeechChunk(text) {
     currentContent += text;
     const contentDiv = document.getElementById('current-content');
     if (contentDiv) {
-        // 使用 Markdown 渲染
+        // 使用 Markdown 渲染，保留光标
         if (typeof marked !== 'undefined') {
-            contentDiv.innerHTML = marked.parse(currentContent);
+            contentDiv.innerHTML = marked.parse(currentContent) + '<span class="typing-cursor"></span>';
         } else {
             contentDiv.textContent = currentContent;
         }

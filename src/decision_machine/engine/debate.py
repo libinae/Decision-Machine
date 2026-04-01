@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 from ..agents import PERSONAS, AgentFactory
 from ..config import AppConfig
 from ..constants import DEFAULT_BACKGROUND_QUESTIONS, RULING_KEYWORDS
 from ..logger import log_error
+from ..tools import WebSearchTool
 from ..types import BackgroundQA, DebateResult, Side
 from ..ui import TerminalUI
 from .grouping import GroupingEngine
@@ -34,7 +36,7 @@ class DebateEngine:
     async def run(self) -> DebateResult:
         self.ui.print_header(self.topic)
 
-        self.ui.print_phase("初始化5位人格")
+        self.ui.print_phase("🎭 初始化5位人格")
         for persona in PERSONAS:
             self.ui.print_persona_init(persona, success=True)
 
@@ -46,7 +48,7 @@ class DebateEngine:
             ui=self.ui,
         )
 
-        self.ui.print_phase("阶段一：讨论与分组")
+        self.ui.print_phase("🗣️ 讨论与分组")
 
         try:
             grouping, stances = await grouping_engine.run_grouping()
@@ -61,6 +63,7 @@ class DebateEngine:
 
         self.ui.print_grouping_result(grouping)
 
+        # ===== 背景问答 =====
         judge_agent, _, _ = self.factory.create_judge(
             persona=grouping.judge,
             topic=self.topic,
@@ -70,6 +73,92 @@ class DebateEngine:
         )
         self.background_qa = await self._run_background_qa(judge_agent)
 
+        # ===== 智能体生成搜索关键词 =====
+        self.ui.print_phase("🌐 网络检索资料")
+
+        # 每个辩手根据立场+背景生成搜索关键词
+        debater_info = [
+            (grouping.pros_team.first_debater, "pros", self.pros_position),
+            (grouping.pros_team.second_debater, "pros", self.pros_position),
+            (grouping.cons_team.first_debater, "cons", self.cons_position),
+            (grouping.cons_team.second_debater, "cons", self.cons_position),
+        ]
+
+        search_keywords: dict[str, str] = {}
+        for persona, side, position in debater_info:
+            # 创建临时agent生成搜索关键词
+            temp_agent, _, _ = self.factory.create_debater(
+                persona=persona,
+                topic=self.topic,
+                pros_position=self.pros_position,
+                cons_position=self.cons_position,
+                side=side,
+                background_qa=self.background_qa,
+                stream=False,
+            )
+
+            bg_summary = "\n".join([f"- {q}: {a}" for q, a in zip(self.background_qa.questions, self.background_qa.answers)])
+
+            keyword_prompt = f"""【搜索关键词生成】
+你是 {persona.icon} {persona.name}，被分配为【{'正方' if side == 'pros' else '反方'}】辩手。
+你支持的立场：{position}
+
+用户背景信息：
+{bg_summary}
+
+请根据你的【人格特点】和用户的【实际背景】，生成一个网络搜索关键词，用于搜索能支持你立场的资料。
+要求：
+1. 关键词要结合用户的具体情况
+2. 体现你的人格特点（{persona.description}）
+3. 格式：只需输出关键词，不要其他内容
+
+请输出搜索关键词："""
+
+            from agentscope.message import Msg
+            keyword_msg = Msg("user", keyword_prompt, "user")
+            keyword_response = await temp_agent(keyword_msg)
+            keyword = keyword_response.get_text_content() or ""
+            keyword = keyword.strip().split("\n")[0].strip()
+            if len(keyword) > 50:
+                keyword = keyword[:50]
+            search_keywords[persona.name] = keyword
+
+            # 显示关键词（不显示搜索结果）
+            print(f"    {persona.icon} {persona.name}（{'正方' if side == 'pros' else '反方'}）：{keyword}")
+
+        # ===== 并行搜索（后台执行，不显示结果） =====
+        search_tool = WebSearchTool(max_results=5)
+
+        async def search_async(keyword: str) -> str:
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, search_tool.search, keyword)
+
+        search_tasks = [search_async(kw) for kw in search_keywords.values()]
+        search_results = await asyncio.gather(*search_tasks)
+
+        # 构建搜索结果映射
+        persona_search_results: dict[str, str] = {}
+        persona_names = list(search_keywords.keys())
+        for i, name in enumerate(persona_names):
+            persona_search_results[name] = search_results[i]
+
+        def get_search_context_for_debater(persona) -> str:
+            """获取辩手相关的搜索结果"""
+            own_result = persona_search_results.get(persona.name, "")
+            teammate = None
+            if persona == grouping.pros_team.first_debater:
+                teammate = grouping.pros_team.second_debater
+            elif persona == grouping.pros_team.second_debater:
+                teammate = grouping.pros_team.first_debater
+            elif persona == grouping.cons_team.first_debater:
+                teammate = grouping.cons_team.second_debater
+            elif persona == grouping.cons_team.second_debater:
+                teammate = grouping.cons_team.first_debater
+
+            teammate_result = persona_search_results.get(teammate.name, "") if teammate else ""
+            return f"{own_result}\n\n【队友补充资料】\n{teammate_result}"
+
+        # ===== 创建辩手 =====
         self.factory.streaming = True
         _, _, judge_model = self.factory.create_judge(
             persona=grouping.judge,
@@ -85,6 +174,7 @@ class DebateEngine:
             cons_position=self.cons_position,
             side="pros",
             background_qa=self.background_qa,
+            search_context=get_search_context_for_debater(grouping.pros_team.first_debater),
         )
         pros_second_agent, _, pros_second_model = self.factory.create_debater(
             persona=grouping.pros_team.second_debater,
@@ -93,6 +183,7 @@ class DebateEngine:
             cons_position=self.cons_position,
             side="pros",
             background_qa=self.background_qa,
+            search_context=get_search_context_for_debater(grouping.pros_team.second_debater),
         )
         cons_first_agent, _, cons_first_model = self.factory.create_debater(
             persona=grouping.cons_team.first_debater,
@@ -101,6 +192,7 @@ class DebateEngine:
             cons_position=self.cons_position,
             side="cons",
             background_qa=self.background_qa,
+            search_context=get_search_context_for_debater(grouping.cons_team.first_debater),
         )
         cons_second_agent, _, cons_second_model = self.factory.create_debater(
             persona=grouping.cons_team.second_debater,
@@ -109,6 +201,7 @@ class DebateEngine:
             cons_position=self.cons_position,
             side="cons",
             background_qa=self.background_qa,
+            search_context=get_search_context_for_debater(grouping.cons_team.second_debater),
         )
 
         phases = DebatePhases(
@@ -177,7 +270,7 @@ class DebateEngine:
         )
 
     async def _run_background_qa(self, judge_agent) -> BackgroundQA:
-        self.ui.print_phase("阶段二：背景信息收集")
+        self.ui.print_phase("📝 背景信息收集")
         self.ui.print_qa_intro()
 
         prompt = f"""【背景信息收集】

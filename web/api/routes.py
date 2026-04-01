@@ -41,6 +41,7 @@ from decision_machine.types import (
     Team,
 )
 from decision_machine.export import format_markdown
+from decision_machine.tools import WebSearchTool
 
 
 async def websocket_debate(websocket: WebSocket):
@@ -65,11 +66,11 @@ async def websocket_debate(websocket: WebSocket):
         # ===== 阶段一：标题和初始化 =====
         await web_ui.print_header(topic)
 
-        await web_ui.print_phase("初始化五重人格")
+        await web_ui.print_phase("🎭 初始化五重人格")
         for persona in PERSONAS:
             await web_ui.print_persona_init(persona, success=True)
 
-        await web_ui.print_phase("阶段一：讨论与分组")
+        await web_ui.print_phase("🗣️ 讨论与分组")
 
         # ===== 阶段二：分组 =====
         grouping_engine = WebGroupingEngine(
@@ -87,7 +88,7 @@ async def websocket_debate(websocket: WebSocket):
         await web_ui.print_grouping_result(grouping)
 
         # ===== 阶段三：背景问答 =====
-        await web_ui.print_phase("阶段二：背景信息收集")
+        await web_ui.print_phase("📝 背景信息收集")
 
         # 让综合人格根据辩题生成问题
         judge_agent_for_qa, _, _ = factory.create_judge(
@@ -151,10 +152,104 @@ async def websocket_debate(websocket: WebSocket):
 
         background_qa = BackgroundQA(questions=questions[:5], answers=answers)
 
-        # ===== 阶段四：创建辩手 =====
-        await web_ui.print_phase("正式辩论 - 开篇陈词")
+        # ===== 阶段四：智能体生成搜索关键词 =====
+        await web_ui.print_phase("🌐 网络检索资料")
 
-        # 创建辩手 agent
+        # 每个辩手根据立场+背景生成搜索关键词
+        debater_info = [
+            (grouping.pros_team.first_debater, "pros", grouping.pros_position),
+            (grouping.pros_team.second_debater, "pros", grouping.pros_position),
+            (grouping.cons_team.first_debater, "cons", grouping.cons_position),
+            (grouping.cons_team.second_debater, "cons", grouping.cons_position),
+        ]
+
+        search_keywords: dict[str, str] = {}
+        for persona, side, position in debater_info:
+            # 创建临时agent生成搜索关键词
+            temp_agent, _, temp_model = factory.create_debater(
+                persona=persona,
+                topic=topic,
+                pros_position=grouping.pros_position,
+                cons_position=grouping.cons_position,
+                side=side,
+                background_qa=background_qa,
+                stream=False,
+            )
+
+            bg_summary = "\n".join([f"- {q}: {a}" for q, a in zip(background_qa.questions, background_qa.answers)])
+
+            keyword_prompt = f"""【搜索关键词生成】
+你是 {persona.icon} {persona.name}，被分配为【{'正方' if side == 'pros' else '反方'}】辩手。
+你支持的立场：{position}
+
+用户背景信息：
+{bg_summary}
+
+请根据你的【人格特点】和用户的【实际背景】，生成一个网络搜索关键词，用于搜索能支持你立场的资料。
+要求：
+1. 关键词要结合用户的具体情况
+2. 体现你的人格特点（{persona.description}）
+3. 格式：只需输出关键词，不要其他内容
+
+请输出搜索关键词："""
+
+            keyword_msg = Msg("user", keyword_prompt, "user")
+            keyword_response = await temp_agent(keyword_msg)
+            keyword = keyword_response.get_text_content() or ""
+            # 清理关键词（去除多余内容）
+            keyword = keyword.strip().split("\n")[0].strip()
+            if len(keyword) > 50:
+                keyword = keyword[:50]
+            search_keywords[persona.name] = keyword
+
+            # 发送关键词显示消息（不显示搜索结果）
+            await websocket.send_json({
+                "type": "search_keyword",
+                "data": {
+                    "speaker": f"{persona.icon} {persona.name}",
+                    "position": "正方" if side == "pros" else "反方",
+                    "keyword": keyword,
+                }
+            })
+
+        # ===== 并行搜索（后台执行，不显示结果） =====
+        import asyncio
+        search_tool = WebSearchTool(max_results=5)
+
+        async def search_async(keyword: str) -> str:
+            """异步搜索"""
+            loop = asyncio.get_event_loop()
+            return await loop.run_in_executor(None, search_tool.search, keyword)
+
+        search_tasks = [search_async(kw) for kw in search_keywords.values()]
+        search_results = await asyncio.gather(*search_tasks)
+
+        # 构建搜索结果映射
+        persona_search_results: dict[str, str] = {}
+        persona_names = list(search_keywords.keys())
+        for i, name in enumerate(persona_names):
+            persona_search_results[name] = search_results[i]
+
+        def get_search_context_for_debater(persona: Persona) -> str:
+            """获取辩手相关的搜索结果"""
+            own_result = persona_search_results.get(persona.name, "")
+            teammate = None
+            if persona == grouping.pros_team.first_debater:
+                teammate = grouping.pros_team.second_debater
+            elif persona == grouping.pros_team.second_debater:
+                teammate = grouping.pros_team.first_debater
+            elif persona == grouping.cons_team.first_debater:
+                teammate = grouping.cons_team.second_debater
+            elif persona == grouping.cons_team.second_debater:
+                teammate = grouping.cons_team.first_debater
+
+            teammate_result = persona_search_results.get(teammate.name, "") if teammate else ""
+            return f"{own_result}\n\n【队友补充资料】\n{teammate_result}"
+
+        # ===== 阶段五：创建辩手 =====
+        await web_ui.print_phase("🎤 开篇陈词")
+
+        # 创建辩手 agent（带个性化搜索结果作为辩论依据）
         pros_first_agent, _, pros_first_model = factory.create_debater(
             persona=grouping.pros_team.first_debater,
             topic=topic,
@@ -162,6 +257,7 @@ async def websocket_debate(websocket: WebSocket):
             cons_position=grouping.cons_position,
             side="pros",
             background_qa=background_qa,
+            search_context=get_search_context_for_debater(grouping.pros_team.first_debater),
         )
         pros_second_agent, _, pros_second_model = factory.create_debater(
             persona=grouping.pros_team.second_debater,
@@ -170,6 +266,7 @@ async def websocket_debate(websocket: WebSocket):
             cons_position=grouping.cons_position,
             side="pros",
             background_qa=background_qa,
+            search_context=get_search_context_for_debater(grouping.pros_team.second_debater),
         )
         cons_first_agent, _, cons_first_model = factory.create_debater(
             persona=grouping.cons_team.first_debater,
@@ -178,6 +275,7 @@ async def websocket_debate(websocket: WebSocket):
             cons_position=grouping.cons_position,
             side="cons",
             background_qa=background_qa,
+            search_context=get_search_context_for_debater(grouping.cons_team.first_debater),
         )
         cons_second_agent, _, cons_second_model = factory.create_debater(
             persona=grouping.cons_team.second_debater,
@@ -186,6 +284,7 @@ async def websocket_debate(websocket: WebSocket):
             cons_position=grouping.cons_position,
             side="cons",
             background_qa=background_qa,
+            search_context=get_search_context_for_debater(grouping.cons_team.second_debater),
         )
 
         judge_agent, _, judge_model = factory.create_judge(
@@ -249,7 +348,7 @@ async def websocket_debate(websocket: WebSocket):
             all_speeches.append(speech)
 
         # ===== 阶段六：自由辩论 =====
-        await web_ui.print_phase("正式辩论 - 自由辩论")
+        await web_ui.print_phase("💬 自由辩论")
 
         debate_agents = [
             (pros_first_agent, pros_first_model, Side.PROS, grouping.pros_team.first_debater, "正方一辩"),
@@ -315,7 +414,7 @@ async def websocket_debate(websocket: WebSocket):
             current_idx = (current_idx + 1) % len(debate_agents)
 
         # ===== 阶段七：结辩 =====
-        await web_ui.print_phase("正式辩论 - 结辩陈词")
+        await web_ui.print_phase("🏁 结辩陈词")
 
         # 构建辩论总结
         recent_speeches = all_speeches[-8:] if len(all_speeches) > 8 else all_speeches
@@ -408,7 +507,7 @@ async def websocket_debate(websocket: WebSocket):
         all_speeches.append(cons_speech)
 
         # ===== 阶段八：裁判裁决 =====
-        await web_ui.print_phase("裁判裁决")
+        await web_ui.print_phase("⚖️ 裁判裁决")
 
         # 构建完整辩论记录
         all_speech_lines = []
@@ -637,6 +736,15 @@ class WebGroupingEngine(GroupingEngine):
             stances.append(stance)
 
         return stances
+
+    async def run_grouping(self) -> tuple[GroupingResult, list[Speech]]:
+        """运行分组流程"""
+        if not self.pros_position or not self.cons_position:
+            await self._analyze_positions()
+
+        stances = await self._collect_stances()
+        grouping = await self._determine_grouping(stances)
+        return grouping, stances
 
     async def _determine_grouping(self, stances: list[Speech]) -> GroupingResult:
         """综合人格进行分组并输出理由"""

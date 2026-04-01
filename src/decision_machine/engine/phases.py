@@ -59,7 +59,7 @@ class DebatePhases:
         self.stream_gen = StreamGenerator()
 
     async def run_opening_statements(self) -> OpeningResult:
-        self.ui.print_phase("正式辩论 - 开篇陈词")
+        self.ui.print_phase("🎤 开篇陈词")
 
         order = [
             (
@@ -143,7 +143,7 @@ class DebatePhases:
         )
 
     async def run_free_debate(self) -> list[Speech]:
-        self.ui.print_phase("正式辩论 - 自由辩论")
+        self.ui.print_phase("💬 自由辩论")
 
         debate_agents = [
             (
@@ -229,7 +229,7 @@ class DebatePhases:
         return self.speeches
 
     async def run_closing_statements(self) -> tuple[Speech, Speech]:
-        self.ui.print_phase("正式辩论 - 结辩陈词")
+        self.ui.print_phase("🏁 结辩陈词")
 
         # 构建精简的辩论总结
         recent_speeches = self.speeches[-8:] if len(self.speeches) > 8 else self.speeches
@@ -321,7 +321,7 @@ class DebatePhases:
         return pros_speech, cons_speech
 
     async def run_judge_ruling(self) -> str:
-        self.ui.print_phase("裁判裁决")
+        self.ui.print_phase("⚖️ 裁判裁决")
         judge_icon = self.grouping.judge.icon
         judge_name = self.grouping.judge.name
         self._print_speaker_label(judge_icon, judge_name, Side.NEUTRAL, is_judge=True)

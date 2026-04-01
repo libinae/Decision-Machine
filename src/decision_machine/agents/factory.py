@@ -30,7 +30,12 @@ class AgentFactory:
             multimodality=multimodality,
         )
 
-    def _create_agent(self, name: str, prompt: str, stream: bool = False) -> ReActAgent:
+    def _create_agent(
+        self,
+        name: str,
+        prompt: str,
+        stream: bool = False,
+    ) -> ReActAgent:
         agent = ReActAgent(
             name=name,
             sys_prompt=prompt,
@@ -58,6 +63,7 @@ class AgentFactory:
         side: str = "pros",
         background_qa: BackgroundQA | None = None,
         stream: bool | None = None,
+        search_context: str | None = None,
     ) -> tuple[ReActAgent, Msg, DashScopeChatModel]:
         # 基础人格提示词
         prompt = persona.prompt_template.format(
@@ -91,6 +97,10 @@ class AgentFactory:
         bg_context = self._format_bg_qa(background_qa)
         if bg_context:
             prompt = f"{prompt}\n\n【用户背景信息】\n{bg_context}\n\n请根据用户的实际情况，给出有针对性的建议。"
+
+        # 添加搜索结果（用于辩论阶段）
+        if search_context:
+            prompt = f"{prompt}\n\n【相关资料】\n以下是网络搜索到的相关信息，请在辩论中作为依据引用：\n{search_context}"
 
         use_stream = stream if stream is not None else self.streaming
         agent = self._create_agent(f"{persona.icon} {persona.name}", prompt, stream=use_stream)
