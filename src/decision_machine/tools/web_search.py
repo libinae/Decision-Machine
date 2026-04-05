@@ -4,7 +4,9 @@
 """
 
 import asyncio
+import time
 from typing import Any
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from ddgs import DDGS
 
@@ -12,9 +14,29 @@ from ddgs import DDGS
 class WebSearchTool:
     """网络搜索工具"""
 
-    def __init__(self, max_results: int = 5):
+    def __init__(self, max_results: int = 5, timeout: int = 10):
         self.max_results = max_results
+        self.timeout = timeout
         self._cache: dict[str, list[dict[str, str]]] = {}
+        self._executor = ThreadPoolExecutor(max_workers=2)
+
+    def _do_search(self, query: str) -> list[dict[str, str]]:
+        """执行搜索（同步方法）"""
+        try:
+            with DDGS(timeout=self.timeout) as ddgs:
+                search_results = list(ddgs.text(query, max_results=self.max_results))
+
+            results = []
+            for r in search_results:
+                results.append({
+                    "title": r.get("title", ""),
+                    "snippet": r.get("body", "")[:500],
+                    "url": r.get("href", ""),
+                })
+            return results
+        except Exception as e:
+            print(f"[WebSearch] 搜索出错: {e}")
+            return []
 
     def search(self, query: str) -> str:
         """执行网络搜索
@@ -30,22 +52,19 @@ class WebSearchTool:
             return self._format_results(self._cache[query])
 
         try:
-            results = []
-            with DDGS() as ddgs:
-                search_results = list(ddgs.text(query, max_results=self.max_results))
-
-            for r in search_results:
-                results.append({
-                    "title": r.get("title", ""),
-                    "snippet": r.get("body", "")[:500],  # 限制长度
-                    "url": r.get("href", ""),
-                })
+            # 使用线程池执行，带超时
+            future = self._executor.submit(self._do_search, query)
+            results = future.result(timeout=self.timeout + 5)
 
             self._cache[query] = results
             return self._format_results(results)
 
+        except FuturesTimeoutError:
+            print(f"[WebSearch] 搜索超时: {query}")
+            return "搜索超时"
         except Exception as e:
-            return f"搜索失败: {str(e)}"
+            print(f"[WebSearch] 搜索异常: {e}")
+            return "搜索失败"
 
     def _format_results(self, results: list[dict[str, str]]) -> str:
         """格式化搜索结果"""
@@ -59,9 +78,12 @@ class WebSearchTool:
         return "\n".join(lines)
 
     async def async_search(self, query: str) -> str:
-        """异步搜索（在线程池中执行）"""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.search, query)
+        """异步搜索"""
+        loop = asyncio.get_running_loop()
+        try:
+            return await loop.run_in_executor(self._executor, self.search, query)
+        except Exception as e:
+            return f"搜索失败: {str(e)}"
 
 
 # 全局搜索工具实例

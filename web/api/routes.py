@@ -152,86 +152,110 @@ async def websocket_debate(websocket: WebSocket):
 
         background_qa = BackgroundQA(questions=questions[:5], answers=answers)
 
-        # ===== 阶段四：智能体生成搜索关键词 =====
+        # ===== 阶段四：网络检索（可选，出错则跳过） =====
         await web_ui.print_phase("🌐 网络检索资料")
+        print("[DEBUG] 开始网络检索阶段...")
 
-        # 每个辩手根据立场+背景生成搜索关键词
-        debater_info = [
-            (grouping.pros_team.first_debater, "pros", grouping.pros_position),
-            (grouping.pros_team.second_debater, "pros", grouping.pros_position),
-            (grouping.cons_team.first_debater, "cons", grouping.cons_position),
-            (grouping.cons_team.second_debater, "cons", grouping.cons_position),
-        ]
+        # 搜索结果默认为空，出错时直接跳过
+        persona_search_results: dict[str, str] = {}
+        search_enabled = True
 
-        search_keywords: dict[str, str] = {}
-        for persona, side, position in debater_info:
-            # 创建临时agent生成搜索关键词
-            temp_agent, _, temp_model = factory.create_debater(
-                persona=persona,
-                topic=topic,
-                pros_position=grouping.pros_position,
-                cons_position=grouping.cons_position,
-                side=side,
-                background_qa=background_qa,
-                stream=False,
+        try:
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
+
+            # 每个辩手生成搜索关键词
+            debater_info = [
+                (grouping.pros_team.first_debater, "pros", grouping.pros_position),
+                (grouping.pros_team.second_debater, "pros", grouping.pros_position),
+                (grouping.cons_team.first_debater, "cons", grouping.cons_position),
+                (grouping.cons_team.second_debater, "cons", grouping.cons_position),
+            ]
+
+            search_keywords: dict[str, str] = {}
+            executor = ThreadPoolExecutor(max_workers=4)
+
+            for persona, side, position in debater_info:
+                try:
+                    temp_agent, _, temp_model = factory.create_debater(
+                        persona=persona,
+                        topic=topic,
+                        pros_position=grouping.pros_position,
+                        cons_position=grouping.cons_position,
+                        side=side,
+                        background_qa=background_qa,
+                        stream=False,
+                    )
+
+                    keyword_prompt = f"生成一个搜索关键词用于搜索支持【{position}】的资料。只输出关键词："
+                    keyword_msg = Msg("user", keyword_prompt, "user")
+
+                    keyword_response = await asyncio.wait_for(
+                        temp_agent(keyword_msg),
+                        timeout=15.0
+                    )
+                    keyword = keyword_response.get_text_content() or topic
+                    keyword = keyword.strip().split("\n")[0].strip()[:50]
+
+                except Exception as e:
+                    keyword = topic
+                    print(f"[DEBUG] {persona.name} 关键词生成失败: {e}")
+
+                search_keywords[persona.name] = keyword
+                print(f"[DEBUG] {persona.name} 关键词: {keyword}")
+
+                await websocket.send_json({
+                    "type": "search_keyword",
+                    "data": {
+                        "speaker": f"{persona.icon} {persona.name}",
+                        "position": "正方" if side == "pros" else "反方",
+                        "keyword": keyword,
+                    }
+                })
+
+            # 执行搜索
+            print("[DEBUG] 执行并行搜索...")
+            search_tool = WebSearchTool(max_results=3, timeout=10)
+
+            def sync_search(keyword: str) -> str:
+                return search_tool.search(keyword)
+
+            loop = asyncio.get_running_loop()
+            search_tasks = [
+                loop.run_in_executor(executor, sync_search, kw)
+                for kw in search_keywords.values()
+            ]
+
+            search_results = await asyncio.wait_for(
+                asyncio.gather(*search_tasks, return_exceptions=True),
+                timeout=60.0
             )
 
-            bg_summary = "\n".join([f"- {q}: {a}" for q, a in zip(background_qa.questions, background_qa.answers)])
+            # 构建结果映射
+            persona_names = list(search_keywords.keys())
+            for i, name in enumerate(persona_names):
+                result = search_results[i]
+                if isinstance(result, Exception):
+                    persona_search_results[name] = ""
+                else:
+                    persona_search_results[name] = result or ""
 
-            keyword_prompt = f"""【搜索关键词生成】
-你是 {persona.icon} {persona.name}，被分配为【{'正方' if side == 'pros' else '反方'}】辩手。
-你支持的立场：{position}
+            print(f"[DEBUG] 搜索完成")
 
-用户背景信息：
-{bg_summary}
-
-请根据你的【人格特点】和用户的【实际背景】，生成一个网络搜索关键词，用于搜索能支持你立场的资料。
-要求：
-1. 关键词要结合用户的具体情况
-2. 体现你的人格特点（{persona.description}）
-3. 格式：只需输出关键词，不要其他内容
-
-请输出搜索关键词："""
-
-            keyword_msg = Msg("user", keyword_prompt, "user")
-            keyword_response = await temp_agent(keyword_msg)
-            keyword = keyword_response.get_text_content() or ""
-            # 清理关键词（去除多余内容）
-            keyword = keyword.strip().split("\n")[0].strip()
-            if len(keyword) > 50:
-                keyword = keyword[:50]
-            search_keywords[persona.name] = keyword
-
-            # 发送关键词显示消息（不显示搜索结果）
-            await websocket.send_json({
-                "type": "search_keyword",
-                "data": {
-                    "speaker": f"{persona.icon} {persona.name}",
-                    "position": "正方" if side == "pros" else "反方",
-                    "keyword": keyword,
-                }
-            })
-
-        # ===== 并行搜索（后台执行，不显示结果） =====
-        import asyncio
-        search_tool = WebSearchTool(max_results=5)
-
-        async def search_async(keyword: str) -> str:
-            """异步搜索"""
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, search_tool.search, keyword)
-
-        search_tasks = [search_async(kw) for kw in search_keywords.values()]
-        search_results = await asyncio.gather(*search_tasks)
-
-        # 构建搜索结果映射
-        persona_search_results: dict[str, str] = {}
-        persona_names = list(search_keywords.keys())
-        for i, name in enumerate(persona_names):
-            persona_search_results[name] = search_results[i]
+        except asyncio.TimeoutError:
+            print("[DEBUG] 搜索阶段超时，跳过")
+            search_enabled = False
+        except Exception as e:
+            print(f"[DEBUG] 搜索阶段出错: {e}")
+            search_enabled = False
+        finally:
+            if 'executor' in locals():
+                executor.shutdown(wait=False)
 
         def get_search_context_for_debater(persona: Persona) -> str:
             """获取辩手相关的搜索结果"""
+            if not search_enabled:
+                return ""
             own_result = persona_search_results.get(persona.name, "")
             teammate = None
             if persona == grouping.pros_team.first_debater:
@@ -244,7 +268,9 @@ async def websocket_debate(websocket: WebSocket):
                 teammate = grouping.cons_team.first_debater
 
             teammate_result = persona_search_results.get(teammate.name, "") if teammate else ""
-            return f"{own_result}\n\n【队友补充资料】\n{teammate_result}"
+            if own_result or teammate_result:
+                return f"{own_result}\n\n【队友补充资料】\n{teammate_result}"
+            return ""
 
         # ===== 阶段五：创建辩手 =====
         await web_ui.print_phase("🎤 开篇陈词")
