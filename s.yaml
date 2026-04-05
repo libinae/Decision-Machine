@@ -1,0 +1,61 @@
+# 阿里云函数计算部署配置
+# 使用 Serverless Devs (s) 工具部署
+
+edition: 1.0.0
+name: decision-machine
+access: default
+
+vars:
+  region: cn-hangzhou
+  serviceName: decision-machine-service
+  functionName: decision-machine-api
+
+services:
+  decision-machine:
+    component: fc
+    props:
+      region: ${vars.region}
+
+      service:
+        name: ${vars.serviceName}
+        description: 多人格决策机 - 基于多智能体辩论的决策辅助工具
+        internetAccess: true
+        logConfig: auto
+
+      function:
+        name: ${vars.functionName}
+        description: 决策机 Web API
+        runtime: python3.10
+        codeUri: ./
+        handler: fc_app.app
+        timeout: 300
+        memorySize: 1024
+        instanceConcurrency: 5
+        environmentVariables:
+          DASHSCOPE_API_KEY: ${env.DASHSCOPE_API_KEY}
+          # OSS 配置（用于存储任务状态）
+          OSS_ACCESS_KEY_ID: ${env.OSS_ACCESS_KEY_ID}
+          OSS_ACCESS_KEY_SECRET: ${env.OSS_ACCESS_KEY_SECRET}
+          OSS_ENDPOINT: oss-cn-hangzhou.aliyuncs.com
+          OSS_BUCKET_NAME: decision-machine-state
+
+      triggers:
+        - name: httpTrigger
+          type: http
+          config:
+            authType: anonymous
+            methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - HEAD
+              - OPTIONS
+
+      customDomains:
+        - domainName: auto
+          protocol: HTTP
+          routeConfigs:
+            - path: /*
+              serviceName: ${vars.serviceName}
+              functionName: ${vars.functionName}

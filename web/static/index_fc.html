@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多重人格决策机 - 函数计算版</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Markdown 渲染库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* 函数计算版额外样式 */
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        .status-indicator.connected {
+            background-color: #4ade80;
+        }
+        .status-indicator.connecting {
+            background-color: #fbbf24;
+        }
+        .status-indicator.error {
+            background-color: #f87171;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .qa-question {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .qa-answer {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(74, 222, 128, 0.1);
+            border-radius: 8px;
+            color: #4ade80;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🎯 多重人格决策机</h1>
+            <p class="subtitle">基于多智能体讨论的决策辅助工具 <span style="font-size: 0.7em; opacity: 0.7;">(FC版)</span></p>
+        </header>
+
+        <section class="input-area">
+            <input
+                type="text"
+                id="topic-input"
+                class="topic-input"
+                placeholder="输入决策主题，如：我应该辞职创业还是继续上班？"
+                value="我应该辞职创业还是继续上班？"
+            >
+            <button id="start-btn" class="start-btn">开始决策</button>
+        </section>
+
+        <section class="status-area" id="status-area">
+            <div class="status-text" id="status-text">
+                <span class="status-indicator"></span>
+            </div>
+        </section>
+
+        <section class="debate-area">
+            <div class="debate-log" id="debate-log"></div>
+        </section>
+
+        <section class="result-area" id="result-area" style="display: none;">
+            <div class="winner-display" id="winner-display"></div>
+            <button id="download-btn" class="download-btn">下载报告</button>
+        </section>
+
+        <footer style="text-align: center; padding: 20px; opacity: 0.6; font-size: 0.9em;">
+            <p>Powered by 阿里云函数计算</p>
+        </footer>
+    </div>
+
+    <!-- 函数计算版前端脚本 -->
+    <script src="/static/app_fc.js"></script>
+</body>
+</html>
